@@ -31,10 +31,6 @@ package org.osflash.hasher {
 		/** If Hasher should stop dispatching change Events */
 		private static var _isStopped:Boolean = true;
 		
-		/** Keep record of the history stack internally if ExternalInterface or Hasher.js isn't available */
-		//TODO: implement!
-		private static var _historyStack:Array;
-		
 		/**  Hash string */
 		private static var _hash:String = "";
 		
@@ -113,7 +109,7 @@ package org.osflash.hasher {
 		 * @private
 		 */
 		public function Hasher() {
-			throw Error('this is a static class and should not be instantiated.');
+			throw new Error('this is a static class and should not be instantiated.');
 		}
 
 		//---------------------------------------
@@ -173,8 +169,11 @@ package org.osflash.hasher {
 			if(value != _hash){
 				if(_isHasherJSAvailable){
 					callHasherJS("Hasher.setHash", null, value);
-				}else if(! _isStopped){
-					_dispatcher.dispatchEvent(new HasherEvent(HasherEvent.CHANGE, _hash, value));
+				}else{
+					HasherHistoryStack.add(value); //FIXME: check if change is comming from a HistoryStack change (to make sure we don't add same value multiple times).
+					if(! _isStopped){
+						_dispatcher.dispatchEvent(new HasherEvent(HasherEvent.CHANGE, _hash, value));
+					}
 				}
 				_hash = value;
 			}
@@ -265,7 +264,8 @@ package org.osflash.hasher {
 			if(_isHasherJSAvailable){
 				ExternalInterface.call("Hasher.init");
 			}else{
-				_dispatcher.dispatchEvent(new HasherEvent(HasherEvent.INIT, _hash, _hash));
+				HasherHistoryStack.add(hash);
+				_dispatcher.dispatchEvent(new HasherEvent(HasherEvent.INIT, hash, hash));
 			}
 			_isStopped = false;
 		}
@@ -278,7 +278,7 @@ package org.osflash.hasher {
 			if(_isHasherJSAvailable){
 				ExternalInterface.call("Hasher.stop");
 			}else {
-				_dispatcher.dispatchEvent(new HasherEvent(HasherEvent.STOP, _hash, _hash));
+				_dispatcher.dispatchEvent(new HasherEvent(HasherEvent.STOP, hash, hash));
 			}
 			_isStopped = true;
 		}
@@ -287,14 +287,22 @@ package org.osflash.hasher {
 		 * Navigate to previous page in history
 		 */
 		public static function back():void {
-			callHasherJS("Hasher.back");
+			if(_isHasherJSAvailable){
+				callHasherJS("Hasher.back");
+			}else{
+				hash = HasherHistoryStack.back();
+			}
 		}
 
 		/**
 		 * Navigate to next page in history
 		 */
 		public static function forward():void {
-			callHasherJS("Hasher.forward");
+			if(_isHasherJSAvailable){
+				callHasherJS("Hasher.forward");
+			}else{
+				hash = HasherHistoryStack.forward();
+			}
 		}
 
 		/**
@@ -303,7 +311,11 @@ package org.osflash.hasher {
 		 * @param delta	Relative location to the current page.
 		 */
 		public static function go(delta:int):void {
-			callHasherJS("Hasher.go", null, delta);
+			if(_isHasherJSAvailable){
+				callHasherJS("Hasher.go", null, delta);
+			}else{
+				hash = HasherHistoryStack.go(delta);
+			}
 		}
 
 		//---------------------------------------

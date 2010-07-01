@@ -2,63 +2,60 @@ package org.osflash.hasher {
 
 	/**
 	 * Keep record of the history stack internally if ExternalInterface or Hasher.js isn't available (e.g. running outside a browser) so the Hasher.back(), Hasher.forward() and Hasher.go() still work.
+	 * - only used if External JS isn't working.
 	 * @author Miller Medeiros <http://www.millermedeiros.com/>
-	 * @version 0.1 (2010/07/01)
+	 * @version 0.2 (2010/07/01)
 	 */
 	public class HasherHistoryStack {
 
-		private static var _instance:HasherHistoryStack;
-		private var _stack:Array;
-		private var _curIndex:uint;
+		private static var _stack:Array = [];
+		private static var _curIndex:uint = -1;
 
 		//---------------------------------------
 		// METHODS
 		//---------------------------------------
 		
 		/**
-		 * Singleton Class
+		 * Static Class
 		 * @private
 		 */
-		public function HasherHistoryStack(enforcer:SingletonEnforcer = null) {
-			if (enforcer == null) throw( new Error("Singleton Class! Must be acessed by the getInstance() method only."));
-			_stack = [];
-		}
-
-		/**
-		 * Get HasherHistoryStack instance
-		 */
-		public static function getInstance():HasherHistoryStack {
-			if(!_instance) {
-				_instance = new HasherHistoryStack(new SingletonEnforcer());
-			}
-			return _instance;
+		public function HasherHistoryStack() {
+			throw new Error('this is a static class and should not be instantiated.');
 		}
 		
-		public function push(value:String):uint {
+		/**
+		 * Add a new item on the stack
+		 * @param hashValue	
+		 */
+		public static function add(hashValue:String):uint {
 			_stack.length = _curIndex + 1; //removes any item after current index from history
-			_curIndex =	_stack.push(value) - 1;
+			_curIndex =	_stack.push(hashValue) - 1;
 			return _curIndex;
 		}
-
-		public function back():String {
+		
+		/**
+		 * Get previous item on the stack (or first item of the stack if the current index == 0) and update current index.
+		 */
+		public static function back():String {
 			_curIndex = Math.max(_curIndex - 1, 0);
 			return _stack[_curIndex];
 		}
-
-		public function forward():String {
+		
+		/**
+		 * Get next item on the stack (or last item on the stack if the current index == stack.lenght - 1) and update current index.
+		 */
+		public static function forward():String {
 			_curIndex = Math.min(_curIndex + 1, _stack.length - 1); 
 			return _stack[_curIndex];
 		}
 		
-		public function go(delta:int):String {
+		/**
+		 * Get item from the stack and update current index based on delta.
+		 * @param delta	Relative location to the current page
+		 */
+		public static function go(delta:int):String {
 			_curIndex = Math.max( Math.min(_curIndex + delta, _stack.length - 1), 0);
 			return _stack[_curIndex];
 		}
 	}
-}
-
-/**
- * Ensure Singleton Pattern
- */
-class SingletonEnforcer {
 }
