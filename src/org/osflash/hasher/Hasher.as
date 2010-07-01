@@ -1,102 +1,155 @@
-package org.osflash.hasher
-{
+package org.osflash.hasher {
 	import flash.events.Event;
 	import flash.events.EventDispatcher;
 	import flash.external.ExternalInterface;
-	import flash.utils.setTimeout;
 
 	/**
 	 * Hasher - History Manager for rich-media applications.
 	 * - Bridge for Hasher.js methods and also allows the application to work outside the browser and/or without any JavaScript calls.
 	 * @requires Hasher.js <http://github.com/millermedeiros/Hasher/>
-	 * @author Lucas Motta <http://www.lucasmotta.com>
-	 * @version 0.1
+	 * @author Lucas Motta <http://www.lucasmotta.com>, Miller Medeiros <http://www.millermedeiros.com>
+	 * @version 0.2
 	 */
-	public class Hasher extends EventDispatcher 
-	{
+	public class Hasher {
 
+		//---------------------------------------
+		// VARIABLES
+		//---------------------------------------
 		
-		//---------------------------------------
-		// PUBLIC VARIABLES
-		//---------------------------------------
-
-		//---------------------------------------
-		// PRIVATE VARIABLES
-		//---------------------------------------
-		private static var _instance : Hasher;
-
-		private var _objectId : String;
-
-		private var _available : Boolean;
+		/** Event Dispatcher, used composition instead of inheritance */
+		private static var _dispatcher:EventDispatcher = new EventDispatcher();
 		
-		private var _initialized : Boolean;
-
-		private var _hash : String = "";
-
-		private var _title : String = "";
-
-		private var _scripts : XML = <script>
-			<init>
+		/** Stores random ID used to identify flash movie */
+		private static var _flashMovieId:String;
+		
+		/** If ExternalInterface is available */
+		private static var _isExternalAvailable:Boolean;
+		
+		/** If Flash movie is registered and Hasher was initialized */
+		private static var _isInitialized:Boolean;
+		
+		/**  Hash string */
+		private static var _hash:String = "";
+		
+		/** Page title */
+		private static var _title:String = "";
+		
+		/** Javascript methods */
+		private static var _scripts:XML = <scripts>
+			<getHasher>
+				<![CDATA[
+					function(){ return Hasher; }
+				]]>
+			</getHasher>
+			<registerFlash>
+			    <![CDATA[
+			    	//Stores a reference to the flash movie that will be used later to attach/detach event listeners/callbacks
+		        	function(){
+		        		var objects = document.getElementsByTagName('object');
+		        		var embeds = document.getElementsByTagName('embed');
+		        		var flashMovies = objects.concat(embeds);
+		        		var flashMovieId = '::flashMovieId::';
+		        		var n = flashMovies.length;
+		        		for(var i=0; i<n; i++){
+		        			if(flashMovieId in flashMovies[i]){
+		        				if(!Hasher._registeredFlashMovies){
+		        					Hasher._registeredFlashMovies = {};
+		        				}
+		        				Hasher._registeredFlashMovies[::flashMovieId::] = flashMovies[i];
+		        				break;
+		        			}
+		        		}
+		        	}
+			    ]]>
+		    </registerFlash>
+		    <attachInit>
 			    <![CDATA[
 			        function() {
 			        	Hasher.addEventListener(HasherEvent.INIT,
-			        		function(e){
-			        			document.getElementById('$objectId').init(e.target);
+			        		function(evt){
+			        			Hasher._registeredFlashMovies[::flashMovieId::].Hasher_init(evt);
 			        		}
 			        	);
 			        }
 			    ]]>
-		    </init>
-		    <stop>
+		    </attachInit>
+		    <attachStop>
 			    <![CDATA[
 			        function() {
 			        	Hasher.addEventListener(HasherEvent.STOP,
 			        		function(e){
-			        			document.getElementById('$objectId').stop(e.target);
+			        			Hasher._registeredFlashMovies[::flashMovieId::].Hasher_stop(evt);
 			        		}
 			        	);
 			        }
 			    ]]>
-		    </stop>
-		    <change>
+		    </attachStop>
+		    <attachChange>
 			    <![CDATA[
 			        function() {
 			        	Hasher.addEventListener(HasherEvent.CHANGE,
 			        		function(e){
-			        			document.getElementById('$objectId').change(e.target);
+			        			Hasher._registeredFlashMovies[::flashMovieId::].Hasher_change(evt);
 			        		}
 			        	);
 			        }
 			    ]]>
-		    </change>
-		</script>;
+		    </attachChange>
+		</scripts>;
 
-		
 		//---------------------------------------
 		// CONSTRUCTOR
 		//---------------------------------------
 		
 		/**
-		 * Constructor
+		 * Constructor (Static Class)
+		 * @private
 		 */
-		public function Hasher()
-		{
+		public function Hasher() {
+			throw Error('this is a static class and should not be instantiated.');
 		}
 
-		public static function getInstance() : Hasher
-		{
-			if(_instance == null)
-			{
-				_instance = new Hasher();
-				setTimeout(_instance.init, 100);
-			}
-			
-			return _instance;
+		//---------------------------------------
+		// EVENT DISPATCHER
+		//---------------------------------------
+		
+		// Favored Composition over inheritance so we can have a Static Class instead of a Singleton Class.
+		
+		/**
+		 * Registers an event listener
+		 * @param	type	Event type
+		 * @param	listener	Event listener
+		 * @param	useCapture	Determines whether the listener works in the capture phase or the target and bubbling phases
+		 * @param	priority	The priority level of the event listener
+		 * @param	useWeakReference	Determines whether the reference to the listener is strong or weak
+		 */
+		public static function addEventListener(type:String, listener:Function, useCapture:Boolean = false, priority:int = 0, useWeakReference:Boolean = false):void {
+			_dispatcher.addEventListener(type, listener, useCapture, priority, useWeakReference);
 		}
 
-		public static function get instance() : Hasher
-		{
-			return getInstance();
+		/**
+		 * Removes an event listener
+		 * @param	type	Event type
+		 * @param	listener	Event listener
+		 */
+		public static function removeEventListener(type:String, listener:Function):void {
+			_dispatcher.removeEventListener(type, listener, false);
+		}
+
+		/**
+		 * Dispatches an event to all the registered listeners.
+		 * @param	event	Event object
+		 */
+		public static function dispatchEvent(event:Event):Boolean {
+			return _dispatcher.dispatchEvent(event);
+		}
+
+		/**
+		 * Checks the existance of any listeners registered for a specific type of event
+		 * @param	type	Event type
+		 */
+		public static function hasEventListener(type:String):Boolean {
+			return _dispatcher.hasEventListener(type);
 		}
 
 		//---------------------------------------
@@ -104,53 +157,25 @@ package org.osflash.hasher
 		//---------------------------------------
 		
 		/**
-		 * Return hash value as String.
-		 * @return {String}	Hash value without '#'.
+		 * Hash value without '#'.
 		 */
-		public function get hash() : String
-		{
+		public static function get hash():String {
 			return call("Hasher.getHash", _hash);
 		}
-
-		/**
-		 * Set Hash value.
-		 * @param {String} value	Hash value without '#'.
-		 */
-		public function set hash(value : String) : void
-		{
+		public static function set hash(value:String):void {
 			_hash = value;
 			
 			call("Hasher.setHash", _hash, _hash);
-			if(!_available) onChange();
+			if(!_isExternalAvailable) onChange();
 		}
 
 		/**
-		 * Return hash value as Array.
-		 * @return {Array}	Hash splitted into an Array.  
+		 * Page title
 		 */
-		public function get hashAsArray() : Array
-		{
-			var value : String = hash;
-			if(value.indexOf("?") >= 0) value = value.slice(0, value.indexOf("?"));
-			
-			return value.replace(/^[\/]+|[\/]+$/gi, "").split("/");
-		}
-
-		/**
-		 * Get page title
-		 * @return {String} Page Title
-		 */
-		public function get title() : String
-		{
+		public static function get title():String {
 			return call("Hasher.getTitle", _title);
 		}
-
-		/**
-		 * Set page title
-		 * @param {String} value	Page Title
-		 */
-		public function set title(value : String) : void
-		{
+		public static function set title(value:String):void {
 			_title = value;
 			call("Hasher.setTitle", _title, value);
 		}
@@ -159,8 +184,7 @@ package org.osflash.hasher
 		 * Retrieve full URL.
 		 * @return {String}	Full URL.
 		 */
-		public function get url() : String
-		{
+		public static function get url():String {
 			return call("Hasher.getURL", "");
 		}
 
@@ -168,27 +192,8 @@ package org.osflash.hasher
 		 * Retrieve URL without query string and hash.
 		 * @return {String}	Base URL.
 		 */
-		public function get baseUrl() : String
-		{
+		public function get baseUrl():String {
 			return call("Hasher.getBaseURL", "");
-		}
-
-		/**
-		 * Host name of the URL.
-		 * @return {String}	The Host Name.
-		 */
-		public function get hostName() : String
-		{
-			return call("Hasher.getHostName", "");
-		}
-
-		/**
-		 * Retrieves Path relative to HostName
-		 * @return {String} Folder path relative to domain
-		 */
-		public function get pathName() : String
-		{
-			return call("Hasher.getPathName", "");
 		}
 
 		//---------------------------------------
@@ -196,18 +201,27 @@ package org.osflash.hasher
 		//---------------------------------------
 		
 		/**
+		 * Return hash value as Array.
+		 * @param separator	String used to divide hash (default = '/').	
+		 * @return Hash splitted into an Array.  
+		 */
+		public static  function getHashAsArray(separator:String = '/'):Array {
+			var regexp:RegExp = new RegExp('^\\'+ separator +'|\\'+ separator +'$', 'g'); //match separator at the end or begin of string
+			var hash:String = Hasher.hash.replace(regexp, '');
+			return hash.split(separator);
+		}
+		
+		/**
 		 * Navigate to previous page in history
 		 */
-		public function back() : void
-		{
+		public static function back():void {
 			call("Hasher.back");
 		}
 
 		/**
 		 * Navigate to next page in history
 		 */
-		public function forward() : void
-		{
+		public static function forward():void {
 			call("Hasher.forward");
 		}
 
@@ -216,77 +230,67 @@ package org.osflash.hasher
 		 * - for example `-1` loads previous page, `1` loads next page.
 		 * @param {int} delta	Relative location to the current page.
 		 */
-		public function go(delta : int) : void
-		{
+		public static function go(delta:int):void {
 			call("Hasher.go", null, delta);
-		}
-
-		/**
-		 * Set a new location or hash value without generating a history record for the current page. (user won't be able to return to current page)
-		 * @param {String} value	New location (eg: '#newhash', 'newfile.html', 'http://example.com/')
-		 */
-		public function replaceLocation(value : String) : void
-		{
-			call("Hasher.replace", null, value);
 		}
 
 		//---------------------------------------
 		// PRIVATE AND PROTECTED METHODS
 		//---------------------------------------
-		protected function init() : void
-		{
-			if(ExternalInterface.available)
-			{
-				_objectId = ExternalInterface.objectID;
+		protected static function init():void {
+			if(ExternalInterface.available) {
+				_objectId = ExternalInterface.objectID; //TODO: generate random flashMovieId
 				
 				// Check if the Hasher class is included
-				if(ExternalInterface.call("Hasher.getBaseURL") == undefined)
-				{
+				if(ExternalInterface.call(getScript("gethasher")) == undefined) {
 					onInit();
 					return;
 				}
 				
-				_available = true;
-				ExternalInterface.addCallback("change", onChange);
-				ExternalInterface.addCallback("init", onInit);
-				ExternalInterface.addCallback("stop", onStop);
-				ExternalInterface.call(getScript(_scripts["init"]));
-				ExternalInterface.call(getScript(_scripts["change"]));
+				_isExternalAvailable = true;
+				ExternalInterface.addCallback("Hasher_change", onChange);
+				ExternalInterface.addCallback("Hasher_init", onInit);
+				ExternalInterface.addCallback("Hasher_stop", onStop);
+				ExternalInterface.call(getScript("attachInit"));
+				ExternalInterface.call(getScript("attachChange"));
+				ExternalInterface.call(getScript("attachStop"));
 				ExternalInterface.call("Hasher.init");
 			}
 		}
-
-		private function getScript(value : XMLList) : String
-		{
-			return value.toString().replace("$objectId", _objectId);
+		
+		/**
+		 * Get Javascript function
+		 * @param nodeName	Node that contain script
+		 */
+		private static function getScript(nodeName:String):String {
+			var node:XMLList = _scripts[nodeName] as XMLList;
+			return node.toString().replace("::flashMovieId::", _flashMovieId);
 		}
-
-		private function call(action : String, alternative : String = null, ...args) : String
-		{
-			if(!_initialized) throw new Error("You need to wait for the application be initialized.");
-			if(_available) return ExternalInterface.call(action, args) as String;
-			if(alternative) return alternative;
-			
-			return "";
+		
+		/**
+		 * Call a Javascript method and/or returns default value
+		 * @param action	Function Name or String representing the function that should be called. 
+		 * @param alternativeReturn	Alternative return value if ExternalInterface isn't available.
+		 * @param args	Arguments passed to the JavaScript function.
+		 */
+		private static function call(action:String, alternativeReturn:* = null, ...args):* {
+			if(!_isInitialized) throw new Error("You need to wait for the application be initialized.");
+			if(_isExternalAvailable) return ExternalInterface.call(action, args) as String;
+			return alternativeReturn;
 		}
 
 		//---------------------------------------
 		// EVENT HANDLERS
 		//---------------------------------------
-		private function onChange(hasher : Object = null) : void
-		{
-			dispatchEvent(new Event(Event.CHANGE));
-		}
-
-		private function onInit(hasher : Object = null) : void
-		{
-			_initialized = true;
+		private static function onChange(evt:Object = null):void {
 			
-			dispatchEvent(new Event(Event.INIT));
 		}
 
-		private function onStop(hasher : Object = null) : void
-		{
+		private static function onInit(evt:Object = null):void {
+			_isInitialized = true;
+		}
+
+		private static function onStop(evt:Object = null):void {
 		}
 	}
 }
