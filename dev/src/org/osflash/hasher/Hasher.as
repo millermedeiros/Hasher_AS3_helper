@@ -9,6 +9,7 @@ package org.osflash.hasher {
 	 * @requires Hasher.js <http://github.com/millermedeiros/Hasher/>
 	 * @author Lucas Motta <http://www.lucasmotta.com>, Miller Medeiros <http://www.millermedeiros.com>
 	 * @version 0.2 (2010/07/01)
+	 * Released under the MIT License <http://www.opensource.org/licenses/mit-license.php>
 	 */
 	public class Hasher {
 
@@ -28,14 +29,17 @@ package org.osflash.hasher {
 		/** If Flash movie is registered and Hasher was initialized */
 		private static var _isRegistered:Boolean;
 		
-		/** If Hasher should stop dispatching change Events */
+		/** If Hasher should stop dispatching change Events (only used for internal changes when Hasher.js isn't available) */
 		private static var _isStopped:Boolean = true;
 		
+		/** If current hash change is being triggered by a HistoryStack navigation (only used for internal changes when Hasher.js isn't available) */ 
+		private static var _isHistoryChange:Boolean = false;
+		
 		/**  Hash string */
-		private static var _hash:String = "";
+		private static var _hash:String = null;
 		
 		/** Page title */
-		private static var _title:String = "";
+		private static var _title:String = null;
 		
 		/** Javascript methods */
 		private static var _scripts:XML = <scripts>
@@ -166,14 +170,14 @@ package org.osflash.hasher {
 			return callHasherJS("Hasher.getHash", _hash);
 		}
 		public static function set hash(value:String):void {
-			if(value != _hash){
+			value = value.replace(/^#/, ''); //remove '#' from the beginning of string 
+			if(value != hash){
 				if(_isHasherJSAvailable){
 					callHasherJS("Hasher.setHash", null, value);
 				}else{
-					HasherHistoryStack.add(value); //FIXME: check if change is comming from a HistoryStack change (to make sure we don't add same value multiple times).
-					if(! _isStopped){
-						_dispatcher.dispatchEvent(new HasherEvent(HasherEvent.CHANGE, _hash, value));
-					}
+					if(! _isHistoryChange) HasherHistoryStack.add(value); //make sure we don't add same value multiple times to the history stack without needing
+					_isHistoryChange = false;
+					if(! _isStopped) _dispatcher.dispatchEvent(new HasherEvent(HasherEvent.CHANGE, _hash, value));
 				}
 				_hash = value;
 			}
@@ -195,9 +199,8 @@ package org.osflash.hasher {
 		 * - based on MM.queryUtils.getQueryString <http://github.com/millermedeiros/MM_js_lib/>
 		 */
 		 public static function get hashQuery():String{
-		 	var queryString:String = Hasher.hash.replace(/#[\w\W]*/, '');
-		 	var searchRegex:RegExp = /\?[a-zA-Z0-9\=\&\%\$\-\_\.\+\!\*\'\(\)\,]+/;
-		 	var result:Object = searchRegex.exec(queryString);
+		 	var searchRegex:RegExp = /\?[a-zA-Z0-9\=\&\%\$\-\_\.\+\!\*\'\(\)\,]+/; //valid chars according to: http://www.ietf.org/rfc/rfc1738.txt
+		 	var result:Object = searchRegex.exec(Hasher.hash);
 			return (result)? decodeURIComponent(result[0]).substr(1) : '';
 		 }
 		 
@@ -262,12 +265,12 @@ package org.osflash.hasher {
 			if(! _isRegistered) registerFlashMovie();
 			
 			if(_isHasherJSAvailable){
-				ExternalInterface.call("Hasher.init");
+				callHasherJS("Hasher.init");
 			}else{
 				HasherHistoryStack.add(hash);
-				_dispatcher.dispatchEvent(new HasherEvent(HasherEvent.INIT, hash, hash));
+				_dispatcher.dispatchEvent(new HasherEvent(HasherEvent.INIT, _hash, hash));
+				_isStopped = false;
 			}
-			_isStopped = false;
 		}
 		
 		/**
@@ -276,11 +279,11 @@ package org.osflash.hasher {
 		 */
 		public static function stop():void {
 			if(_isHasherJSAvailable){
-				ExternalInterface.call("Hasher.stop");
+				callHasherJS("Hasher.stop");
 			}else {
 				_dispatcher.dispatchEvent(new HasherEvent(HasherEvent.STOP, hash, hash));
+				_isStopped = true;
 			}
-			_isStopped = true;
 		}
 		
 		/**
@@ -290,6 +293,7 @@ package org.osflash.hasher {
 			if(_isHasherJSAvailable){
 				callHasherJS("Hasher.back");
 			}else{
+				_isHistoryChange = true;
 				hash = HasherHistoryStack.back();
 			}
 		}
@@ -301,6 +305,7 @@ package org.osflash.hasher {
 			if(_isHasherJSAvailable){
 				callHasherJS("Hasher.forward");
 			}else{
+				_isHistoryChange = true;
 				hash = HasherHistoryStack.forward();
 			}
 		}
@@ -314,6 +319,7 @@ package org.osflash.hasher {
 			if(_isHasherJSAvailable){
 				callHasherJS("Hasher.go", null, delta);
 			}else{
+				_isHistoryChange = true;
 				hash = HasherHistoryStack.go(delta);
 			}
 		}
@@ -331,8 +337,7 @@ package org.osflash.hasher {
 			if(Hasher._isRegistered) return; //can't register flash movie more than once
 			
 			if(ExternalInterface.available){
-				// Check if the Hasher class is included on the HTML
-				if(! ExternalInterface.call(getScript("getHasher"))) {
+				if(! ExternalInterface.call(getScript("getHasher"))) { // Check if the Hasher class is included on the HTML
 					_isHasherJSAvailable = false;
 				}else{
 					var ms:Number = new Date().getTime();
@@ -381,17 +386,15 @@ package org.osflash.hasher {
 		//---------------------------------------
 		
 		private static function onExternalChange(evt:Object):void {
-			if(! _isStopped) _dispatcher.dispatchEvent(new HasherEvent(HasherEvent.CHANGE, evt["oldHash"], evt["newHash"]));
+			_dispatcher.dispatchEvent(new HasherEvent(HasherEvent.CHANGE, evt["oldHash"], evt["newHash"]));
 		}
 
 		private static function onExternalInit(evt:Object):void {
 			_dispatcher.dispatchEvent(new HasherEvent(HasherEvent.INIT, evt["oldHash"], evt["newHash"]));
-			_isStopped = false;
 		}
 
 		private static function onExternalStop(evt:Object):void {
 			_dispatcher.dispatchEvent(new HasherEvent(HasherEvent.STOP, evt["oldHash"], evt["newHash"]));
-			_isStopped = true;
 		}
 	}
 }

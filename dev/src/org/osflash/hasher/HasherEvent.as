@@ -4,7 +4,8 @@ package org.osflash.hasher {
 	/**
 	 * Hasher Event
 	 * @author Miller Medeiros <http://www.millermedeiros.com/>
-	 * @version 0.1 (2010/07/01)
+	 * @version 0.2 (2010/07/02)
+	 * Released under the MIT License <http://www.opensource.org/licenses/mit-license.php>
 	 */
 	public class HasherEvent extends Event {
 		
@@ -41,7 +42,7 @@ package org.osflash.hasher {
 		 * @param oldHash	Previous Hash value.
 		 * @param newHash	Current Hash value.
 		 */
-		public function HasherEvent(type:String, oldHash:String = "", newHash:String = "") {
+		public function HasherEvent(type:String, oldHash:String = null, newHash:String = null) {
 			super(type, false, false);
 			this.oldHash = oldHash;
 			this.newHash = newHash;

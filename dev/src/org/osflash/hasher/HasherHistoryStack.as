@@ -4,7 +4,8 @@ package org.osflash.hasher {
 	 * Keep record of the history stack internally if ExternalInterface or Hasher.js isn't available (e.g. running outside a browser) so the Hasher.back(), Hasher.forward() and Hasher.go() still work.
 	 * - only used if External JS isn't working.
 	 * @author Miller Medeiros <http://www.millermedeiros.com/>
-	 * @version 0.2 (2010/07/01)
+	 * @version 0.3 (2010/07/02)
+	 * Released under the MIT License <http://www.opensource.org/licenses/mit-license.php>
 	 */
 	public class HasherHistoryStack {
 
@@ -56,6 +57,13 @@ package org.osflash.hasher {
 		public static function go(delta:int):String {
 			_curIndex = Math.max( Math.min(_curIndex + delta, _stack.length - 1), 0);
 			return _stack[_curIndex];
+		}
+		
+		/**
+		 * Returns string representation of the HasherHistoryStack
+		 */
+		public static function toString() : String {
+			return '[HasherHistoryStack stack="' + _stack + '" currentIndex="' + _curIndex + '" currentValue="'+ _stack[_curIndex] + '"]';
 		}
 	}
 }
