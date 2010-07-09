@@ -3,14 +3,12 @@ package org.osflash.hasher {
 	import flash.events.EventDispatcher;
 	import flash.external.ExternalInterface;
 
-	//XXX: [miller]: considering going back to a singleton Class since the way it's working right now enforces the user to call Hasher.init(); before calling any other method using the Hasher_AS3_Helper (otherwise it only call the internal methods). 
-	
 	/**
 	 * Hasher - History Manager for rich-media applications.
 	 * - Bridge for Hasher.js methods and also allows the application to work outside the browser and/or without any JavaScript calls.
 	 * @requires Hasher.js <http://github.com/millermedeiros/Hasher/>
 	 * @author Lucas Motta <http://www.lucasmotta.com>, Miller Medeiros <http://www.millermedeiros.com>
-	 * @version 0.3 (2010/07/08)
+	 * @version 0.4 (2010/07/09)
 	 * Released under the MIT License <http://www.opensource.org/licenses/mit-license.php>
 	 */
 	public class Hasher {
@@ -31,11 +29,14 @@ package org.osflash.hasher {
 		/** If Flash movie is registered and Hasher was initialized */
 		private static var _isRegistered:Boolean;
 		
-		/** If Hasher is initialized */
-		private static var _isInitialized:Boolean;
+		/** If Hasher is active and should listen/dispatch changes on the hash */
+		private static var _isActive:Boolean;
 		
 		/** If current hash change is being triggered by a HistoryStack navigation (only used for internal changes when Hasher.js isn't available) */ 
 		private static var _isHistoryChange:Boolean;
+		
+		/** If JS event listeners were attached */
+		private static var _isJSEventsAttached:Boolean;
 		
 		/**  Hash string */
 		private static var _hash:String;
@@ -112,6 +113,13 @@ package org.osflash.hasher {
 		//---------------------------------------
 		
 		/**
+		 * Pseudo static constructor (static initializer)
+		 */
+		{
+			registerFlashMovie();
+		}
+		
+		/**
 		 * Constructor (Static Class)
 		 * @private
 		 */
@@ -145,7 +153,7 @@ package org.osflash.hasher {
 		public static function removeEventListener(type:String, listener:Function):void {
 			_dispatcher.removeEventListener(type, listener, false);
 		}
-
+		
 		/**
 		 * Dispatches an event to all the registered listeners.
 		 * @param	event	Event object
@@ -160,6 +168,14 @@ package org.osflash.hasher {
 		 */
 		public static function hasEventListener(type:String):Boolean {
 			return _dispatcher.hasEventListener(type);
+		}
+		
+		/**
+		 * Checks whether an event listener is registered with this EventDispatcher object or any of its ancestors for the specified event type.
+		 * @param type	Event type
+		 */
+		public static function willTrigger(type:String):Boolean{
+			return _dispatcher.willTrigger(type);
 		}
 
 		//---------------------------------------
@@ -180,7 +196,7 @@ package org.osflash.hasher {
 				}else{
 					if(! _isHistoryChange) HasherHistoryStack.add(value); //make sure we don't add same value multiple times to the history stack without needing
 					_isHistoryChange = false;
-					if(_isInitialized) _dispatcher.dispatchEvent(new HasherEvent(HasherEvent.CHANGE, _hash, value));
+					if(_isActive) _dispatcher.dispatchEvent(new HasherEvent(HasherEvent.CHANGE, _hash, value));
 				}
 				_hash = value;
 			}
@@ -245,16 +261,20 @@ package org.osflash.hasher {
 
 		/**
 		 * Full URL.
+		 * - IMPORTANT: requires ExternalInterface and Hasher.js to work.
+		 * @return Full URL or `null` if ExternalInterface and/or Hasher.js isn't available.
 		 */
 		public static function get url():String {
-			return callHasherJS("Hasher.getURL", "");
+			return callHasherJS("Hasher.getURL", null);
 		}
 
 		/**
 		 * URL without query string and hash.
+		 * - IMPORTANT: requires ExternalInterface and Hasher.js to work.
+		 * @return URL without query string and hash or `null` if ExternalInterface and/or Hasher.js isn't available.
 		 */
 		public static function get baseUrl():String {
-			return callHasherJS("Hasher.getBaseURL", "");
+			return callHasherJS("Hasher.getBaseURL", null);
 		}
 
 		//---------------------------------------
@@ -263,14 +283,13 @@ package org.osflash.hasher {
 		
 		/**
 		 * Start listening/dispatching changes in the hash/history.
-		 * - Will affect al lthe flash movies and JS code listening to the `HashEvent.CHANGE` 
+		 * - Will affect all the flash movies and JS code listening to Hash Events. 
 		 */
 		public static function init():void {
-			if(_isInitialized) return;
+			if(_isActive) return;
+			_isActive = true;
 			
-			if(! _isRegistered) registerFlashMovie();
-			
-			_isInitialized = true;
+			if(! _isJSEventsAttached) attachJSListeners();
 			
 			if(_isHasherJSAvailable){
 				callHasherJS("Hasher.init");
@@ -282,12 +301,11 @@ package org.osflash.hasher {
 		
 		/**
 		 * Stop listening/dispatching changes in the hash/history.
-		 * - Will affect al lthe flash movies and JS code listening to the `HashEvent.CHANGE`
+		 * - Will affect all the flash movies and JS code listening to Hash Events.
 		 */
 		public static function stop():void {
-			if(! _isInitialized) return; 
-			
-			_isInitialized = false;
+			if(! _isActive) return; 
+			_isActive = false;
 			
 			if(_isHasherJSAvailable){
 				callHasherJS("Hasher.stop");
@@ -299,24 +317,14 @@ package org.osflash.hasher {
 		 * Navigate to previous page in history
 		 */
 		public static function back():void {
-			if(_isHasherJSAvailable){
-				callHasherJS("Hasher.back");
-			}else{
-				_isHistoryChange = true;
-				hash = HasherHistoryStack.back();
-			}
+			go(-1);
 		}
 
 		/**
 		 * Navigate to next page in history
 		 */
 		public static function forward():void {
-			if(_isHasherJSAvailable){
-				callHasherJS("Hasher.forward");
-			}else{
-				_isHistoryChange = true;
-				hash = HasherHistoryStack.forward();
-			}
+			go(1);
 		}
 
 		/**
@@ -339,36 +347,40 @@ package org.osflash.hasher {
 		
 		/**
 		 * Register a reference to the flash movie (inside the JavaScript Hasher object) that will be used later to attach/detach Event listeners.
-		 * - also setup all the JS event listeners for external changes in the hash/history and also HasherEvent.INIT and HasherEvent.STOP.
 		 */
 		private static function registerFlashMovie():void{
+			if(_isRegistered) return; //can't register flash movie more than once
 			
-			if(Hasher._isRegistered) return; //can't register flash movie more than once
+			_isRegistered = true;
 			
 			if(ExternalInterface.available){
 				if(! ExternalInterface.call(getScript("getHasher"))) { // Check if the Hasher class is included on the HTML
 					_isHasherJSAvailable = false;
 				}else{
+					//create random ID used to detect and register current flash movie
 					var ms:Number = new Date().getTime();
-					_flashMovieId = "hasher_enabled_"+ int(Math.random() * 0xFFFFFF) +"_"+ ms; //random id for the flash movie (used to attach EventListeners)					
-					
+					var rdm:int = int(Math.random() * 0xFFFFFF);
+					_flashMovieId = "hasher_enabled_"+ rdm +"_"+ ms;					
 					ExternalInterface.addCallback(_flashMovieId, function():Boolean{return true;});					
-					ExternalInterface.addCallback("Hasher_change", onExternalChange);
-					ExternalInterface.addCallback("Hasher_init", onExternalInit);
-					ExternalInterface.addCallback("Hasher_stop", onExternalStop);
-					
-					ExternalInterface.call(getScript("registerFlashMovie"));
-					ExternalInterface.call(getScript("attachInit"));
-					ExternalInterface.call(getScript("attachChange"));
-					ExternalInterface.call(getScript("attachStop"));
-					
+					ExternalInterface.call(getScript("registerFlashMovie"));		
 					_isHasherJSAvailable = true;
 				}
-			}else{
-				_isHasherJSAvailable = false;
 			}
+		}
+		
+		/**
+		 * Setup all the JS event listeners for external changes in the hash/history CHANGE and also HasherEvent.INIT and HasherEvent.STOP.
+		 */
+		private static function attachJSListeners():void{
+			if(_isJSEventsAttached) return;
 			
-			_isRegistered = true;
+			ExternalInterface.addCallback("Hasher_change", onExternalChange);
+			ExternalInterface.addCallback("Hasher_init", onExternalInit);
+			ExternalInterface.addCallback("Hasher_stop", onExternalStop);
+			
+			ExternalInterface.call(getScript("attachInit"));
+			ExternalInterface.call(getScript("attachChange"));
+			ExternalInterface.call(getScript("attachStop"));
 		}
 		
 		/**
@@ -395,22 +407,22 @@ package org.osflash.hasher {
 		//---------------------------------------
 		
 		private static function onExternalChange(evt:Object):void {
-			if(_isInitialized){
+			if(_isActive){
 				_dispatcher.dispatchEvent(new HasherEvent(HasherEvent.CHANGE, evt["oldHash"], evt["newHash"]));
 			}
 		}
 
 		private static function onExternalInit(evt:Object):void {
-			if(! _isInitialized){
+			if(! _isActive){
 				_dispatcher.dispatchEvent(new HasherEvent(HasherEvent.INIT, evt["oldHash"], evt["newHash"]));
-				_isInitialized = true;
+				_isActive = true;
 			}
 		}
 
 		private static function onExternalStop(evt:Object):void {
-			if(_isInitialized){
+			if(_isActive){
 				_dispatcher.dispatchEvent(new HasherEvent(HasherEvent.STOP, evt["oldHash"], evt["newHash"]));
-				_isInitialized = false;
+				_isActive = false;
 			}
 		}
 	}
