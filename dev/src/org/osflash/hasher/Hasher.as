@@ -64,7 +64,7 @@ package org.osflash.hasher {
 			        					Hasher._registeredFlashMovies = {};
 			        				}
 			        				Hasher._registeredFlashMovies['::flashMovieId::'] = curMovie;
-			        				break;
+			        				return true;
 			        			}
 		        			}
 		        		};
@@ -193,6 +193,7 @@ package org.osflash.hasher {
 			if(value != hash){
 				if(_isHasherJSAvailable){
 					callHasherJS("Hasher.setHash", null, value);
+					//XXX: maybe dispatch change event instead of waiting for external event 
 				}else{
 					if(! _isHistoryChange) HasherHistoryStack.add(value); //make sure we don't add same value multiple times to the history stack without needing
 					_isHistoryChange = false;
@@ -409,6 +410,7 @@ package org.osflash.hasher {
 		private static function onExternalChange(evt:Object):void {
 			if(_isActive){
 				_dispatcher.dispatchEvent(new HasherEvent(HasherEvent.CHANGE, evt["oldHash"], evt["newHash"]));
+				//TODO: store new _hash value
 			}
 		}
 
