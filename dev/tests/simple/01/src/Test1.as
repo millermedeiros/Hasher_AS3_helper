@@ -1,10 +1,12 @@
 package {
 	import com.millermedeiros.utils.ArrayUtils;
-	import flash.display.StageScaleMode;
-	import flash.display.StageAlign;
-	import org.osflash.hasher.HasherEvent;
+
 	import org.osflash.hasher.Hasher;
+	import org.osflash.hasher.HasherEvent;
+
 	import flash.display.Sprite;
+	import flash.display.StageAlign;
+	import flash.display.StageScaleMode;
 	import flash.events.Event;
 
 	/**
@@ -19,7 +21,8 @@ package {
 
 		private var _logger:Logger;
 		private var _btnHolder:Sprite;
-		
+		private var _input:HashInput;
+
 		public function Test1() {
 			stage ? init() : addEventListener(Event.ADDED_TO_STAGE, init);
 		}
@@ -31,6 +34,7 @@ package {
 			stage.scaleMode = StageScaleMode.NO_SCALE;
 			
 			setupButtons();
+			setupInput();
 			setupLogger();
 		}
 
@@ -66,24 +70,6 @@ package {
 				_logger.log('Hasher.hashQuery:', Hasher.hashQuery );
 			});
 			
-			/*
-			btns[btns.length] = new SimpleButton('set: Title + Hash', function(e:Event):void{ 
-				var hash:String = 'lorem-ipsum';
-				var title:String = 'Lorem Ipsum';
-				_logger.log('Hasher.hash = ' + hash +';', 'Hasher.title = '+ title +';');
-				Hasher.hash = hash;
-				Hasher.title = title;
-			});
-			
-			btns[btns.length] = new SimpleButton('set: Title + Hash', function(e:Event):void{ 
-				var hash:String = 'lorem-ipsum/dolor-sit';
-				var title:String = 'Dolor Sit | Lorem Ipsum';
-				_logger.log('Hasher.hash = ' + hash +';', 'Hasher.title = '+ title +';');
-				Hasher.hash = hash;
-				Hasher.title = title;
-			});
-			 */
-			
 			var curBtn:SimpleButton;
 			var prevBtn:SimpleButton;
 			var lineNum:int = 0;
@@ -104,13 +90,20 @@ package {
 				prevBtn = curBtn;
 			}
 		}
+		
+		private function setupInput():void{
+			_input = new HashInput();
+			addChild(_input);
+			_input.x = _btnHolder.x;
+			_input.y = _btnHolder.y + _btnHolder.height + BTN_MARGIN;
+		}
 
 		private function setupLogger():void {
-			_logger = new Logger();
+			_logger = Logger.getInstance();
 			addChild(_logger);
 			
-			_logger.x = _btnHolder.x;
-			_logger.y = _btnHolder.y + _btnHolder.height + BTN_MARGIN;
+			_logger.x = _input.x;
+			_logger.y = _input.y + _input.height + BTN_MARGIN;
 			
 			Hasher.addEventListener(HasherEvent.INIT, updateLogger);
 			Hasher.addEventListener(HasherEvent.STOP, updateLogger);

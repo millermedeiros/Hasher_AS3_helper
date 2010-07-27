@@ -4,10 +4,13 @@
 		<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
 		<title>Test - Hasher</title>
 		<script type="text/javascript" src="js/swfobject.js"></script>
-		<script type="text/javascript" src="js/Hasher-0.9.3.min.js"></script>
+		<script type="text/javascript" src="js/Hasher-0.9.4.min.js"></script>
 		<script type="text/javascript">
-			swfobject.embedSWF("Test1.swf", "my_flash", "800", "600", "10.0.0");
-			swfobject.embedSWF("Test1.swf", "asd", "800", "600", "10.0.0");
+			var params = {
+				allowscriptaccess : 'always'
+			};
+			swfobject.embedSWF("Test1.swf", "my_flash", "800", "450", "10.0.0", null, null, params);
+			swfobject.embedSWF("Test1.swf", "asd", "800", "450", "10.0.0", null, null, params);
 			//swffit.fit("my_flash");
 		</script>
 		<style type="text/css">
