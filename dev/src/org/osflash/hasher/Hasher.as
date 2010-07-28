@@ -9,7 +9,7 @@ package org.osflash.hasher {
 	 * - Bridge for Hasher.js methods and also allows the application to work outside the browser and/or without any JavaScript calls.
 	 * @require Hasher.js <http://github.com/millermedeiros/Hasher/>
 	 * @author Miller Medeiros <http://www.millermedeiros.com>, Lucas Motta <http://www.lucasmotta.com>
-	 * @version 0.6 (2010/07/28)
+	 * @version 0.6.2 (2010/07/28)
 	 * Released under the MIT License <http://www.opensource.org/licenses/mit-license.php>
 	 */
 	public class Hasher {
@@ -240,21 +240,24 @@ package org.osflash.hasher {
 		 	var queryArr:Array = Hasher.hashQuery.replace('?', '').split('&');
 		 	var n:int = queryArr.length;
 		 	var queryObj:Object = {};
+		 	var value:String;
 		 	while(n--){
 		 		queryArr[n] = (queryArr[n] as String).split('=');
-				queryObj[queryArr[n][0]] = queryArr[n][1];
+		 		value = queryArr[n][1];
+				queryObj[queryArr[n][0]] = isNaN(value as Number)? value : parseFloat(value);
 		 	}
 			return queryObj;
 		}
 		
 		/**
 		 * Get parameter value from the query portion of the Hash
-		 * @return HashQuery parameter value
+		 * @return {(String|Number)} HashQuery parameter value
 		 */
-		public static function getHashQueryParam(paramName:String):String{
+		public static function getHashQueryParam(paramName:String):*{
 			var paramRegex:RegExp = new RegExp("(?<=(?|&)"+ paramName +"=)[^&]*");
 			var result:Object = paramRegex.exec(Hasher.hash);
-			return (result)? decodeURIComponent(result[0]) : null;
+			var value:String = (result)? decodeURIComponent(result[0]) : null;
+			return isNaN(value as Number)? value : parseFloat(value);
 		}
 
 		/**

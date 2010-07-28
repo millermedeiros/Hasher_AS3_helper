@@ -1,6 +1,6 @@
 /*!
  * Hasher <http://github.com/millermedeiros/Hasher>
- * Includes: MM.EventDispatcher (0.8), MM.queryUtils (0.7), MM.event-listenerFacade (0.3)
+ * Includes: MM.EventDispatcher (0.8), MM.queryUtils (0.8), MM.event-listenerFacade (0.3)
  * @author Miller Medeiros <http://www.millermedeiros.com/>
  * @version 0.9.5 (2010/07/28)
  * Released under the MIT License <http://www.opensource.org/licenses/mit-license.php>
@@ -112,7 +112,7 @@ MM.EventDispatcher.prototype = {
  * MM.queryUtils
  * - utilities for query string manipulation
  * @author Miller Medeiros <http://www.millermedeiros.com/>
- * @version 0.7 (2010/06/22)
+ * @version 0.8 (2010/07/28)
  * Released under the MIT License <http://www.opensource.org/licenses/mit-license.php>
  */
 
@@ -156,10 +156,12 @@ MM.queryUtils = {
 	toQueryObject : function(queryString){
 		var queryArr = queryString.replace('?', '').split('&'), 
 			n = queryArr.length,
-			queryObj = {};
+			queryObj = {},
+			value;
 		while (n--) {
 			queryArr[n] = queryArr[n].split('=');
-			queryObj[queryArr[n][0]] = queryArr[n][1];
+			value = queryArr[n][1];
+			queryObj[queryArr[n][0]] = isNaN(value)? value : parseFloat(value);
 		}
 		return queryObj;
 	},
@@ -171,7 +173,10 @@ MM.queryUtils = {
 	 * @return {String}	Parameter value.
 	 */
 	getParamValue : function(param, url){
-		return this.getQueryObject(url)[param];
+		var regexp = new RegExp('(\\?|&)'+ param + '=([^&]*)'), //matches `?param=value` or `&param=value`, value = $2
+			result = regexp.exec(url),
+			value = (result && result[2])? result[2] : null;
+		return isNaN(value)? value : parseFloat(value);
 	},
 	
 	/**
@@ -398,6 +403,7 @@ HasherEvent.STOP = 'stop';
 	 * @private
 	 */
 	function _registerChange(newHash){
+		newHash = decodeURIComponent(newHash); //fix IE8 while offline
 		if(_hash != newHash){
 			var tmpHash = _hash;
 			_hash = newHash; //should come before event dispatch to make sure user can get proper value inside event handler
@@ -541,7 +547,7 @@ HasherEvent.STOP = 'stop';
 	Hasher.setHash = function(value){
 		value = (value)? value.replace(/^\#/, '') : value; //removes '#' from the beginning of string.
 		if(value != _hash){
-			_registerChange(value); //avoid breaking the application if for some reason `location.hash` don't change (not sure if really needed but it's safer to keep it).
+			_registerChange(value); //avoid breaking the application if for some reason `location.hash` don't change
 			if(_isIE && _isLocal){
 				value = value.replace(/\?/, '%3F'); //fix IE8 local file bug [issue #6]
 			}
@@ -648,6 +654,7 @@ HasherEvent.STOP = 'stop';
 		Hasher.removeAllEventListeners(true);
 		Hasher.stop();
 		_hash = _checkInterval = _isActive = _frame = UA  = _isIE = _isLegacyIE = _isHashChangeSupported = _isLocal = _queryUtils = _eventFacade = Hasher = window.Hasher = null;
+		//can't use `delete window.hasher;` because on IE it throws errors, `window` isn't actually an object, delete can only be used on Object properties.
 	};
 	
 	//dispose Hasher on unload to avoid memory leaks
