@@ -27,6 +27,7 @@ package org.osflash.hasher {
 		/**
 		 * Add a new item on the stack
 		 * @param hashValue	
+		 * @return Added item index on the stack
 		 */
 		public static function add(hashValue:String):uint {
 			_stack.length = _curIndex + 1; //removes any item after current index from history
@@ -36,6 +37,7 @@ package org.osflash.hasher {
 		
 		/**
 		 * Get previous item on the stack (or first item of the stack if the current index == 0) and update current index.
+		 * @return previous item on the stack
 		 */
 		public static function back():String {
 			return go(-1);
@@ -43,6 +45,7 @@ package org.osflash.hasher {
 		
 		/**
 		 * Get next item on the stack (or last item on the stack if the current index == stack.lenght - 1) and update current index.
+		 * @return Next item on the stack
 		 */
 		public static function forward():String {
 			return go(1);
@@ -51,6 +54,7 @@ package org.osflash.hasher {
 		/**
 		 * Get item from the stack and update current index based on delta.
 		 * @param delta	Relative location to the current page
+		 * @return Item from the stack
 		 */
 		public static function go(delta:int):String {
 			_curIndex = Math.max( Math.min(_curIndex + delta, _stack.length - 1), 0);
@@ -58,9 +62,9 @@ package org.osflash.hasher {
 		}
 		
 		/**
-		 * Returns string representation of the HasherHistoryStack
+		 * Returns string representation of the HasherHistoryStack 
 		 */
-		public static function toString() : String {
+		public static function toString():String {
 			return '[HasherHistoryStack stack="' + _stack + '" currentIndex="' + _curIndex + '" currentValue="'+ _stack[_curIndex] + '"]';
 		}
 	}

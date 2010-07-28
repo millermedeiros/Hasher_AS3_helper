@@ -7,9 +7,9 @@ package org.osflash.hasher {
 	/**
 	 * Hasher - History Manager for rich-media applications. <http://github.com/millermedeiros/Hasher_AS3_helper/>
 	 * - Bridge for Hasher.js methods and also allows the application to work outside the browser and/or without any JavaScript calls.
-	 * @requires Hasher.js <http://github.com/millermedeiros/Hasher/>
+	 * @require Hasher.js <http://github.com/millermedeiros/Hasher/>
 	 * @author Miller Medeiros <http://www.millermedeiros.com>, Lucas Motta <http://www.lucasmotta.com>
-	 * @version 0.5 (2010/07/27)
+	 * @version 0.6 (2010/07/28)
 	 * Released under the MIT License <http://www.opensource.org/licenses/mit-license.php>
 	 */
 	public class Hasher {
@@ -56,14 +56,12 @@ package org.osflash.hasher {
 			    <![CDATA[
 		        	function(){	        		
 		        		var check = function(flashMovies){
-		        			var n = flashMovies.length;
-		        			var curMovie;
+		        			var n = flashMovies.length,
+		        				curMovie;
 		        			for(var i=0; i<n; i++){
 			        			curMovie = flashMovies[i];
 			        			if('::flashMovieId::' in curMovie){
-			        				if(! Hasher._registeredFlashMovies){
-			        					Hasher._registeredFlashMovies = {};
-			        				}
+			        				Hasher._registeredFlashMovies = Hasher._registeredFlashMovies || {};
 			        				Hasher._registeredFlashMovies['::flashMovieId::'] = curMovie;
 			        				return true;
 			        			}
@@ -79,7 +77,8 @@ package org.osflash.hasher {
 			        function() {
 			        	Hasher.addEventListener(HasherEvent.INIT,
 			        		function(evt){
-			        			Hasher._registeredFlashMovies['::flashMovieId::'].Hasher_init(evt);
+			        			var tmpObj = {type: evt.type, oldHash: evt.oldHash, newHash: evt.newHash}; //fixes chrome/ie bug [issue #1]
+			        			Hasher._registeredFlashMovies['::flashMovieId::'].Hasher_init(tmpObj);
 			        		}
 			        	);
 			        }
@@ -90,7 +89,8 @@ package org.osflash.hasher {
 			        function() {
 			        	Hasher.addEventListener(HasherEvent.STOP,
 			        		function(evt){
-			        			Hasher._registeredFlashMovies['::flashMovieId::'].Hasher_stop(evt);
+			        			var tmpObj = {type: evt.type, oldHash: evt.oldHash, newHash: evt.newHash}; //fixes chrome/ie bug [issue #1]
+			        			Hasher._registeredFlashMovies['::flashMovieId::'].Hasher_stop(tmpObj);
 			        		}
 			        	);
 			        }
@@ -101,7 +101,8 @@ package org.osflash.hasher {
 			        function() {
 			        	Hasher.addEventListener(HasherEvent.CHANGE,
 			        		function(evt){
-			        			Hasher._registeredFlashMovies['::flashMovieId::'].Hasher_change(evt);
+			        			var tmpObj = {type: evt.type, oldHash: evt.oldHash, newHash: evt.newHash}; //fixes chrome/ie bug [issue #1]
+			        			Hasher._registeredFlashMovies['::flashMovieId::'].Hasher_change(tmpObj);
 			        		}
 			        	);
 			        }
@@ -125,7 +126,7 @@ package org.osflash.hasher {
 		 * @private
 		 */
 		public function Hasher() {
-			throw new Error('this is a static class and should not be instantiated.');
+			throw new Error('This is a static class and should not be instantiated.');
 		}
 
 		//---------------------------------------
@@ -187,12 +188,12 @@ package org.osflash.hasher {
 		 * Hash value without '#'.
 		 */
 		public static function get hash():String {
+			//avoid calling JS since hash should always be synched
 			return _hash;
 		}
 		public static function set hash(value:String):void {
 			value = value? value.replace(/^#/, '') : null; //remove '#' from the beginning of string
-			 
-			if(value != hash){
+			if(value != _hash){
 				var tmpHash:String = _hash;
 				_hash = value; //set before calling external JS to avoid dispatching event twice.
 				
@@ -209,6 +210,7 @@ package org.osflash.hasher {
 		
 		/**
 		 * Return hash value as Array.
+		 * - ported from Hasher.js <http://github.com/millermedeiros/Hasher/>
 		 * @param separator	String used to divide hash (default = '/').
 		 * @return Hash splitted into an Array.
 		 */
@@ -232,6 +234,7 @@ package org.osflash.hasher {
 		 /**
 		  * Get Query portion of the Hash as an Object
 		  * - based on MM.queryUtils.toQueryObject <http://github.com/millermedeiros/MM_js_lib/>
+		  * @return Object representing "query part" of the hash.
 		  */
 		 public static function get hashQueryAsObject():Object{
 		 	var queryArr:Array = Hasher.hashQuery.replace('?', '').split('&');
@@ -246,6 +249,7 @@ package org.osflash.hasher {
 		
 		/**
 		 * Get parameter value from the query portion of the Hash
+		 * @return HashQuery parameter value
 		 */
 		public static function getHashQueryParam(paramName:String):String{
 			var paramRegex:RegExp = new RegExp("(?<=(?|&)"+ paramName +"=)[^&]*");
@@ -293,7 +297,7 @@ package org.osflash.hasher {
 		public static function init():void {
 			if(_isActive) return;
 			_isActive = true;
-			//FIXME: something is wrong with INIT on Chrome and IE. (see issue #1 at github)
+			
 			if(! _isJSEventsAttached) attachJSListeners();
 			
 			if(_isHasherJSAvailable){
@@ -301,7 +305,10 @@ package org.osflash.hasher {
 			}else{
 				HasherHistoryStack.add(hash);
 			}
-			_dispatcher.dispatchEvent(new HasherEvent(HasherEvent.INIT, _hash, hash));
+			
+			var tmpHash:String = _hash;
+			_hash = getExtenalHash();
+			_dispatcher.dispatchEvent(new HasherEvent(HasherEvent.INIT, tmpHash, _hash));
 		}
 		
 		/**
@@ -345,7 +352,9 @@ package org.osflash.hasher {
 				hash = HasherHistoryStack.go(delta);
 			}
 		}
-
+		
+		//TODO: create Hasher.dispose() method
+		
 		//---------------------------------------
 		// PRIVATE AND PROTECTED METHODS
 		//---------------------------------------
@@ -365,12 +374,14 @@ package org.osflash.hasher {
 					//create random ID used to detect and register current flash movie
 					var ms:Number = new Date().getTime();
 					var rdm:int = int(Math.random() * 0xFFFFFF);
-					_flashMovieId = "Hasher_"+ rdm +"_"+ ms;					
+					_flashMovieId = "Hasher_"+ rdm +"_"+ ms;
 					ExternalInterface.addCallback(_flashMovieId, function():Boolean{return true;});					
+					
+					//timeout is required for Chrome/IE otherwise register movie won't work for more than 1 flash movie
 					setTimeout(function():void{
 						ExternalInterface.call(getScript("registerFlashMovie"));
-					}, 25);
-					_isHasherJSAvailable = true;
+						_isHasherJSAvailable = true;
+					}, 1);
 				}
 			}
 		}
@@ -381,16 +392,13 @@ package org.osflash.hasher {
 		private static function attachJSListeners():void{
 			if(_isJSEventsAttached) return;
 			
-			ExternalInterface.addCallback("Hasher_change", onExternalChange);
 			ExternalInterface.addCallback("Hasher_init", onExternalInit);
+			ExternalInterface.addCallback("Hasher_change", onExternalChange);
 			ExternalInterface.addCallback("Hasher_stop", onExternalStop);
 			
-			setTimeout(function():void{
-				ExternalInterface.call(getScript("attachInit"));
-				ExternalInterface.call(getScript("attachChange"));
-				ExternalInterface.call(getScript("attachStop"));
-			}, 25);
-			
+			ExternalInterface.call(getScript("attachInit"));
+			ExternalInterface.call(getScript("attachChange"));
+			ExternalInterface.call(getScript("attachStop"));
 		}
 		
 		/**
@@ -417,24 +425,34 @@ package org.osflash.hasher {
 				return alternativeReturn;
 			}
 		}
-
+		
+		/**
+		 * Gets External Hash value (stored on the Hasher JS Object)
+		 */
+		private static function getExtenalHash():String{
+			return callHasherJS("Hasher.getHash", _hash);
+		}
+		
 		//---------------------------------------
 		// EVENT HANDLERS
 		//---------------------------------------
 		
 		/**
 		 * Called when hash is changed from outside flash
+		 * @param evt HasherEvent Object
 		 */
 		private static function onExternalChange(evt:Object):void {
 			var newHash:String = evt["newHash"];
 			if(_isActive && newHash != _hash) {
+				var tmpHash:String = _hash;
 				_hash = newHash;
-				_dispatcher.dispatchEvent(new HasherEvent(HasherEvent.CHANGE, evt["oldHash"], newHash));
+				_dispatcher.dispatchEvent(new HasherEvent(HasherEvent.CHANGE, tmpHash, newHash));
 			}
 		}
 		
 		/**
 		 * Called when Hasher is initialized from outside flash
+		 * @param evt HasherEvent Object
 		 */
 		private static function onExternalInit(evt:Object):void {
 			if(! _isActive){
@@ -445,6 +463,7 @@ package org.osflash.hasher {
 		
 		/**
 		 * Called when Hasher is stopped from outside flash
+		 * @param evt HasherEvent Object
 		 */
 		private static function onExternalStop(evt:Object):void {
 			if(_isActive){
