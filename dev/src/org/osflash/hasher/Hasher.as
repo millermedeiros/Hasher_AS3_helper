@@ -14,6 +14,12 @@ package org.osflash.hasher {
 	 */
 	public class Hasher {
 
+		//TODO: change the way stop/init works, maybe only make it internal (keep JS always running) or make it active since the begining (always listening to external INIT)
+		//XXX: maybe add public property `dispatchEvents:Boolean`
+		//TODO: add VERSION public constant
+		//TODO: create ant build task to generate documentation and swc file
+		//TODO: unit test
+
 		//---------------------------------------
 		// VARIABLES
 		//---------------------------------------
