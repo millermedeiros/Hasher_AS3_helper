@@ -8,7 +8,9 @@ package {
 	import flash.display.StageAlign;
 	import flash.display.StageScaleMode;
 	import flash.events.Event;
-
+	
+	[SWF(backgroundColor="#FFFFFF", frameRate="31", width="640", height="480")]
+	
 	/**
 	 * Basic Test #1
 	 * WARNING: poor code ahead, used only for testing, shouldn't be used as reference.
